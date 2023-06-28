@@ -13,6 +13,14 @@ var (
 
 const maxLength = 100
 
+type unpack struct {
+	result       []byte
+	letter       rune
+	nextLetter   rune
+	cntRepeat    int
+	isWriteSlash bool
+}
+
 func Unpack(input string) (string, error) {
 	ln := utf8.RuneCountInString(input)
 
@@ -25,31 +33,26 @@ func Unpack(input string) (string, error) {
 		return output, err
 	}
 
-	result := make([]byte, 0, ln)
+	process := &unpack{
+		result: make([]byte, 0, ln),
+	}
 
-	var letter rune
-
-	var isWriteSlash bool
-
-	for _, nextLetter := range input {
-		if isSkipLetter(nextLetter) {
+	for _, process.nextLetter = range input {
+		if isSkipLetter(process.nextLetter) {
 			continue
 		}
-
-		var cntRepeat int
-
 		var errParse error
 
-		cntRepeat, errParse = strconv.Atoi(string(nextLetter))
+		process.cntRepeat, errParse = strconv.Atoi(string(process.nextLetter))
 
 		switch {
-		case isSlash(letter) && isSlash(nextLetter) && !isWriteSlash:
-			isWriteSlash = true
-			letter = nextLetter
+		case isSlash(process.letter) && isSlash(process.nextLetter) && !process.isWriteSlash:
+			process.isWriteSlash = true
+			process.letter = process.nextLetter
 		case errParse != nil:
-			result, letter, isWriteSlash, err = singleAdd(result, letter, nextLetter, isWriteSlash)
+			process.result, process.letter, process.isWriteSlash, err = singleAdd(process)
 		case errParse == nil:
-			result, letter, isWriteSlash, err = multiAdd(result, letter, nextLetter, cntRepeat, isWriteSlash)
+			process.result, process.letter, process.isWriteSlash, err = multiAdd(process)
 		}
 
 		if err != nil {
@@ -57,12 +60,13 @@ func Unpack(input string) (string, error) {
 		}
 	}
 
-	result, _, _, err = singleAdd(result, letter, 0, isWriteSlash)
+	process.nextLetter = 0
+	process.result, _, _, err = singleAdd(process)
 	if err != nil {
 		return "", err
 	}
 
-	return string(result), nil
+	return string(process.result), nil
 }
 
 func isSkipLetter(nextLetter rune) bool {
@@ -73,38 +77,32 @@ func isNotAvailableShielding(letter, nextLetter rune, isWriteSlash bool) bool {
 	return isSlash(letter) && !isSlash(nextLetter) && !isWriteSlash
 }
 
-func multiAdd(
-	result []byte,
-	letter,
-	nextLetter rune,
-	cntRepeat int,
-	isWriteSlash bool,
-) ([]byte, rune, bool, error) {
-	if letter == 0 {
-		return nil, 0, isWriteSlash, ErrInvalidString
+func multiAdd(process *unpack) ([]byte, rune, bool, error) {
+	if process.letter == 0 {
+		return nil, 0, process.isWriteSlash, ErrInvalidString
 	}
 
-	if isSlash(letter) && !isWriteSlash {
-		return result, nextLetter, isWriteSlash, nil
+	if isSlash(process.letter) && !process.isWriteSlash {
+		return process.result, process.nextLetter, process.isWriteSlash, nil
 	}
 
-	result = append(result, repeatRune(letter, cntRepeat)...)
+	process.result = append(process.result, repeatRune(process.letter, process.cntRepeat)...)
 
-	return result, 0, false, nil
+	return process.result, 0, false, nil
 }
 
-func singleAdd(result []byte, letter, nextLetter rune, isWriteSlash bool) ([]byte, rune, bool, error) {
-	if isNotAvailableShielding(letter, nextLetter, isWriteSlash) {
+func singleAdd(process *unpack) ([]byte, rune, bool, error) {
+	if isNotAvailableShielding(process.letter, process.nextLetter, process.isWriteSlash) {
 		return nil, 0, false, ErrInvalidString
 	}
 
-	if letter != 0 {
-		result = append(result, repeatRune(letter, 1)...)
+	if process.letter != 0 {
+		process.result = append(process.result, repeatRune(process.letter, 1)...)
 
-		return result, nextLetter, false, nil
+		return process.result, process.nextLetter, false, nil
 	}
 
-	return result, nextLetter, isWriteSlash, nil
+	return process.result, process.nextLetter, process.isWriteSlash, nil
 }
 
 func isSlash(letter rune) bool {
