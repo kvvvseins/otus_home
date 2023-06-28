@@ -17,7 +17,11 @@ func Unpack(input string) (string, error) {
 	ln := utf8.RuneCountInString(input)
 
 	isFinished, output, err := preUnpack(input, ln)
-	if err != nil || isFinished {
+	if err != nil {
+		return "", err
+	}
+
+	if isFinished {
 		return output, err
 	}
 
