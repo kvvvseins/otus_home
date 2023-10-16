@@ -109,10 +109,13 @@ func TestCache(t *testing.T) {
 }
 
 func createFullCache(cachedValues []string) *lruCache {
+	capacity := len(cachedValues)
+
 	c := &lruCache{
-		capacity: len(cachedValues),
+		capacity: capacity,
 		queue:    NewList(),
-		items:    make(map[Key]*ListItem, len(cachedValues)),
+		items:    make(map[Key]*ListItem, capacity),
+		keys:     make(map[*ListItem]Key, capacity),
 		mu:       &sync.Mutex{},
 	}
 
