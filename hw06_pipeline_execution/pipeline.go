@@ -9,6 +9,45 @@ type (
 type Stage func(in In) (out Out)
 
 func ExecutePipeline(in In, done In, stages ...Stage) Out {
-	// Place your code here.
-	return nil
+	if len(stages) == 0 {
+		result := make(Bi)
+		defer close(result)
+
+		return result
+	}
+
+	out := recursiveStaging(in, stages)
+
+	result := make(Bi)
+
+	go func() {
+		defer close(result)
+
+		for {
+			select {
+			case v, ok := <-out:
+				if !ok {
+					return
+				}
+
+				result <- v
+			case <-done:
+				return
+			default:
+				continue
+			}
+		}
+	}()
+
+	return result
+}
+
+func recursiveStaging(in In, stages []Stage) Out {
+	lenStages := len(stages)
+
+	for i := range stages {
+		return recursiveStaging(stages[i](in), stages[i+1:lenStages])
+	}
+
+	return in
 }
