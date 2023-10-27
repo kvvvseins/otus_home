@@ -16,7 +16,7 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 		return result
 	}
 
-	out := recursiveStaging(in, stages)
+	out := recursiveStaging(in, done, stages)
 
 	result := make(Bi)
 
@@ -42,11 +42,16 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 	return result
 }
 
-func recursiveStaging(in In, stages []Stage) Out {
+func recursiveStaging(in In, done In, stages []Stage) Out {
 	lenStages := len(stages)
 
 	for i := range stages {
-		return recursiveStaging(stages[i](in), stages[i+1:lenStages])
+		select {
+		case <-done:
+			return in
+		default:
+			return recursiveStaging(stages[i](in), done, stages[i+1:lenStages])
+		}
 	}
 
 	return in
