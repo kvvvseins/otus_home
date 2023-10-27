@@ -1,5 +1,11 @@
 package hw06pipelineexecution
 
+import (
+	"os"
+	"os/signal"
+	"syscall"
+)
+
 type (
 	In  = <-chan interface{}
 	Out = In
@@ -16,7 +22,17 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 		return result
 	}
 
-	out := recursiveStaging(in, done, stages)
+	sigChan := make(chan os.Signal, 1)
+
+	signal.Notify(sigChan,
+		syscall.SIGHUP,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+		syscall.SIGTERM,
+	)
+
+	out := recursiveStaging(in, done, sigChan, stages)
 
 	result := make(Bi)
 
@@ -33,6 +49,8 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 				result <- v
 			case <-done:
 				return
+			case <-sigChan:
+				return
 			default:
 				continue
 			}
@@ -42,15 +60,17 @@ func ExecutePipeline(in In, done In, stages ...Stage) Out {
 	return result
 }
 
-func recursiveStaging(in In, done In, stages []Stage) Out {
+func recursiveStaging(in In, done In, sigChan chan os.Signal, stages []Stage) Out {
 	lenStages := len(stages)
 
 	for i := range stages {
 		select {
 		case <-done:
 			return in
+		case <-sigChan:
+			return nil
 		default:
-			return recursiveStaging(stages[i](in), done, stages[i+1:lenStages])
+			return recursiveStaging(stages[i](in), done, sigChan, stages[i+1:lenStages])
 		}
 	}
 
