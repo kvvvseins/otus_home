@@ -49,14 +49,85 @@ func TestCache(t *testing.T) {
 		require.Nil(t, val)
 	})
 
-	t.Run("purge logic", func(t *testing.T) {
-		// Write me
+	t.Run("проверка выталкивания из-за размера", func(t *testing.T) {
+		cachedValues := []string{"aaa", "bbb", "ccc"}
+
+		c := createFullCache(cachedValues)
+
+		c.Set("ddd", 100)
+		require.Equal(t, len(cachedValues), c.capacity)
+
+		val, ok := c.Get("ccc")
+		require.True(t, ok)
+		require.Equal(t, 2, val)
+
+		val, ok = c.Get("bbb")
+		require.True(t, ok)
+		require.Equal(t, 1, val)
+
+		val, ok = c.Get("ddd")
+		require.True(t, ok)
+		require.Equal(t, 100, val)
+
+		val, ok = c.Get("aaa")
+		require.False(t, ok)
+		require.Equal(t, nil, val)
+
+		require.Equal(t, len(cachedValues), c.queue.Len())
+	})
+
+	t.Run("проверка выталкивания давно используемых элементов", func(t *testing.T) {
+		cachedValues := []string{"zzzzz", "eeee", "ddd", "ccc", "bbb", "aaa"}
+
+		c := createFullCache(cachedValues)
+
+		c.Set("ddd", 100)
+		c.Get("bbb")
+		c.Get("zzzzz")
+		c.Get("eeee")
+
+		// вытесняем ccc
+		c.Set("ccc2", 111)
+
+		val, ok := c.Get("ccc")
+		require.False(t, ok)
+		require.Equal(t, nil, val)
+
+		require.Equal(t, len(cachedValues), c.queue.Len())
+	})
+
+	t.Run("тестируем clear", func(t *testing.T) {
+		cachedValues := []string{"zzzzz", "eeee", "ddd", "ccc", "bbb", "aaa"}
+
+		c := createFullCache(cachedValues)
+		c.Clear()
+
+		require.Equal(t, len(c.items), c.queue.Len())
+		require.Equal(t, 0, c.queue.Len())
+		require.Equal(t, 0, len(c.items))
 	})
 }
 
-func TestCacheMultithreading(t *testing.T) {
-	t.Skip() // Remove me if task with asterisk completed.
+func createFullCache(cachedValues []string) *lruCache {
+	capacity := len(cachedValues)
 
+	c := &lruCache{
+		capacity: capacity,
+		queue:    NewList(),
+		items:    make(map[Key]*ListItem, capacity),
+		keys:     make(map[*ListItem]Key, capacity),
+		mu:       &sync.Mutex{},
+	}
+
+	// заполняем кеш
+	for i, v := range cachedValues {
+		_ = c.Set(Key(v), i)
+	}
+
+	return c
+}
+
+func TestCacheMultithreading(t *testing.T) {
 	c := NewCache(10)
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
