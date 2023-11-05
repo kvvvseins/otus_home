@@ -64,14 +64,28 @@ func recursiveStaging(in In, done In, sigChan chan os.Signal, stages []Stage) Ou
 	lenStages := len(stages)
 
 	for i := range stages {
-		select {
-		case <-done:
-			return in
-		case <-sigChan:
-			return nil
-		default:
-			return recursiveStaging(stages[i](in), done, sigChan, stages[i+1:lenStages])
-		}
+		pipelineIn := make(Bi)
+
+		go func() {
+			defer close(pipelineIn)
+
+			for {
+				select {
+				case val, ok := <-in:
+					if !ok {
+						return
+					}
+
+					pipelineIn <- val
+				case <-done:
+					return
+				case <-sigChan:
+					return
+				}
+			}
+		}()
+
+		return recursiveStaging(stages[i](pipelineIn), done, sigChan, stages[i+1:lenStages])
 	}
 
 	return in
